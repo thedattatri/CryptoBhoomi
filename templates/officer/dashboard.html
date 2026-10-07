@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block title %}Officer Dashboard{% endblock %}
+{% block body %}
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><div class="logo">Block<span>Land</span></div><div class="subtitle">Revenue Officer Portal</div></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Verification</div>
+      <a href="/officer/dashboard" class="active"><span class="nav-icon"><i class="bi bi-clipboard-check"></i></span> Pending Verifications</a>
+      <div class="nav-section">Account</div>
+      <a href="/logout"><span class="nav-icon"><i class="bi bi-box-arrow-left"></i></span> Logout</a>
+    </nav>
+    <div class="sidebar-footer"><div class="wallet-badge"><div class="dot"></div><span id="officerName">Officer</span></div></div>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="bi bi-list"></i></button>
+        <span class="page-title">Verification Dashboard</span>
+      </div>
+      <div class="topbar-actions">
+        <span class="text-muted" style="font-size:0.85rem;">Revenue Dept: <strong id="deptIdDisplay">-</strong></span>
+      </div>
+    </header>
+
+    <div class="page-content fade-in">
+      <div class="page-header"><h1>Pending Land Verifications</h1><p>Review and verify property registrations</p></div>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>Property ID</th><th>Location</th><th>Survey No.</th><th>Area</th><th>Owner</th><th>Documents</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="verifyBody"><tr><td colspan="8" class="text-center text-muted" style="padding:40px;">Loading properties...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/web3.min.js"></script>
+<script src="/static/js/app.js"></script>
+<script>
+const SM={0:'Pending',1:'Scheduled',2:'Verified',3:'Rejected',4:'On Sale',5:'Bought'};
+const SB={0:'badge-warning',1:'badge-info',2:'badge-success',3:'badge-danger',4:'badge-purple',5:'badge-success'};
+
+(async function(){
+  // Connect to blockchain
+  if(!window.ethereum){showToast('MetaMask required','error');return;}
+  window.web3=new Web3(ethereum);
+  await window.ethereum.request({method:'eth_requestAccounts'});
+  await loadContractDetails();
+
+  const empName=localStorage.getItem('empName')||'Officer';
+  const deptId=localStorage.getItem('revenueDeptId')||'';
+  document.getElementById('officerName').textContent=empName;
+  document.getElementById('deptIdDisplay').textContent=deptId;
+
+  if(!deptId){showToast('Department ID not found','error');return;}
+
+  try{
+    const abi=JSON.parse(localStorage.getItem('LandRegistry_ContractABI'));
+    const addr=localStorage.getItem('LandRegistry_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    const props=await c.methods.getPropertiesByRevenueDeptId(parseInt(deptId)).call();
+    if(!props.length){document.getElementById('verifyBody').innerHTML='<tr><td colspan="8" class="text-center text-muted" style="padding:40px;">No properties to verify</td></tr>';return;}
+    let h='';
+    props.forEach(p=>{
+      const s=parseInt(p.state);
+      let actions='';
+      if(s===0){
+        actions=`<button class="btn btn-sm btn-primary" onclick="verifyProp(${p.propertyId})"><i class="bi bi-check"></i> Approve</button> <button class="btn btn-sm btn-danger" onclick="rejectProp(${p.propertyId})"><i class="bi bi-x"></i> Reject</button>`;
+      }
+      h+=`<tr><td><strong>${p.propertyId}</strong></td><td>${p.locationId}</td><td>${p.surveyNumber}</td><td>${p.area}</td><td>${p.owner.slice(0,6)}...${p.owner.slice(-4)}</td><td><button class="btn btn-sm btn-secondary" onclick="document.getElementById('pdfFrame').src='/api/property-doc/${p.propertyId}';document.getElementById('pdfPopup').classList.add('active');"><i class="bi bi-file-pdf"></i></button></td><td><span class="badge ${SB[s]}">${SM[s]}</span></td><td>${actions}</td></tr>`;
+    });
+    document.getElementById('verifyBody').innerHTML=h;
+  }catch(e){console.error(e);showToast('Error loading','error');}
+})();
+
+async function verifyProp(propId){
+  const accounts=await web3.eth.getAccounts();
+  const account=accounts[0];
+  const expectedAddr = localStorage.getItem('userAddress');
+  if(account.toLowerCase() !== expectedAddr.toLowerCase()) {
+    showToast(`Wallet mismatch! Please switch MetaMask to your Officer account ending in ${expectedAddr.slice(-4)}`, 'error');
+    return;
+  }
+  try{showLoading('Verifying property on blockchain...');
+    const abi=JSON.parse(localStorage.getItem('LandRegistry_ContractABI'));
+    const addr=localStorage.getItem('LandRegistry_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    await c.methods.verifyProperty(propId).send({from:account});
+    fetch('/api/log-transaction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({txType:'Property Verified',fromAddress:account,propertyId:String(propId)})});
+    hideLoading();showToast('Property verified!','success');location.reload();
+  }catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+
+async function rejectProp(propId){
+  const reason=prompt('Enter rejection reason:');
+  if(!reason)return;
+  const accounts=await web3.eth.getAccounts();
+  const account=accounts[0];
+  const expectedAddr = localStorage.getItem('userAddress');
+  if(account.toLowerCase() !== expectedAddr.toLowerCase()) {
+    showToast(`Wallet mismatch! Please switch MetaMask to your Officer account ending in ${expectedAddr.slice(-4)}`, 'error');
+    return;
+  }
+  try{showLoading('Rejecting...');
+    const abi=JSON.parse(localStorage.getItem('LandRegistry_ContractABI'));
+    const addr=localStorage.getItem('LandRegistry_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    await c.methods.rejectProperty(propId,reason).send({from:account});
+    fetch('/api/log-transaction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({txType:'Property Rejected',fromAddress:account,propertyId:String(propId),details:reason})});
+    hideLoading();showToast('Property rejected','success');location.reload();
+  }catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+</script>
+{% endblock %}

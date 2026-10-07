@@ -1,0 +1,108 @@
+{% extends 'app_layout.html' %}
+{% block page_title %}Register Land{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Register New Land</h1><p>Submit your property details for government verification</p></div>
+
+<div style="max-width:700px;">
+  <div class="card">
+    <form onsubmit="addProperty(event)">
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="revenueDeptId">Revenue Department ID</label>
+          <input type="number" class="form-control" id="revenueDeptId" placeholder="e.g. 101" required>
+        </div>
+        <div class="form-group">
+          <label for="location">Location ID</label>
+          <input type="number" class="form-control" id="location" placeholder="e.g. 1001" required>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="surveyNumber">Survey Number</label>
+          <input type="number" class="form-control" id="surveyNumber" placeholder="e.g. 5432" required>
+        </div>
+        <div class="form-group">
+          <label for="area">Area (sq ft)</label>
+          <input type="number" class="form-control" id="area" placeholder="e.g. 2400" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="registrationDoc">Legal Documents (PDF)</label>
+        <input type="file" class="form-control" id="registrationDoc" accept=".pdf" required>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" required> I certify that the above information is correct
+        </label>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg" id="addPropertyBtn">
+        <i class="bi bi-plus-circle"></i> Register Property on Blockchain
+      </button>
+    </form>
+    <p class="text-muted mt-2" id="addPropertyStatus" style="font-size:0.85rem;"></p>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+async function addProperty(event) {
+  event.preventDefault();
+  const status = document.getElementById('addPropertyStatus');
+  const btn = document.getElementById('addPropertyBtn');
+  const account = localStorage.getItem('userAddress');
+
+  if (!account) { status.innerHTML = '<span class="text-red">Connect wallet first</span>'; return; }
+
+  const revDept = document.getElementById('revenueDeptId').value;
+  const location = document.getElementById('location').value;
+  const survey = document.getElementById('surveyNumber').value;
+  const area = document.getElementById('area').value;
+  const fileInput = document.getElementById('registrationDoc');
+
+  try {
+    const accounts = await web3.eth.getAccounts();
+    if (accounts[0] !== account) { status.innerHTML = '<span class="text-red">Wrong account in MetaMask</span>'; return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;display:inline-block;"></div> Registering...';
+
+    // Step 1: Register on blockchain
+    const abi = JSON.parse(localStorage.getItem('LandRegistry_ContractABI'));
+    const addr = localStorage.getItem('LandRegistry_ContractAddress');
+    const contract = new web3.eth.Contract(abi, addr);
+
+    const result = await contract.methods.addLand(location, revDept, survey, area).send({from: account});
+    const propertyId = result.events.LandAdded.returnValues.propertyId;
+
+    status.innerHTML = `<span class="text-accent">✓ Property ${propertyId} registered on blockchain. Uploading documents...</span>`;
+
+    // Step 2: Upload document
+    const formData = new FormData();
+    formData.append('propertyDocs', fileInput.files[0]);
+    formData.append('owner', account);
+    formData.append('propertyId', propertyId);
+
+    const uploadRes = await fetch('/api/upload-docs', { method: 'POST', body: formData });
+    const uploadData = await uploadRes.json();
+
+    // Step 3: Log transaction
+    fetch('/api/log-transaction', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({txType:'Land Registration', fromAddress:account, propertyId:String(propertyId), details:`Location:${location}, Survey:${survey}`})
+    });
+
+    if (uploadData.status === 'success') {
+      status.innerHTML = `<span class="text-accent">✓ Property ${propertyId} registered and documents uploaded! Redirecting...</span>`;
+      setTimeout(() => window.location.href = '/user/dashboard', 1500);
+    } else {
+      status.innerHTML = `<span class="text-amber">Property registered but document upload failed. Please re-upload.</span>`;
+    }
+  } catch (error) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-plus-circle"></i> Register Property on Blockchain';
+    status.innerHTML = `<span class="text-red">${parseError(error)}</span>`;
+  }
+}
+</script>
+{% endblock %}

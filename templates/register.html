@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}Register{% endblock %}
+{% block body %}
+<div class="landing-page">
+  <nav class="landing-nav">
+    <div class="logo">Crypto<span>Bhoomi</span></div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/about">About</a>
+    </div>
+  </nav>
+
+  <section class="hero" style="min-height:100vh;">
+    <div style="max-width:520px;width:100%;">
+      <h2 style="margin-bottom:8px;">Create Your Account</h2>
+      <p class="text-muted" style="margin-bottom:32px;">Register on the blockchain to start buying or selling land</p>
+
+      <div class="card">
+        <div id="walletInfo" class="mb-3"
+          style="padding:12px;background:var(--bg-glass);border-radius:var(--radius-sm);font-size:0.85rem;">
+          <i class="bi bi-wallet2 text-accent"></i>
+          Wallet: <span id="connectedWallet" class="text-accent">Loading...</span>
+        </div>
+
+        <form onsubmit="registerUser(event)">
+          <div class="form-group">
+            <label for="firstName">First Name</label>
+            <input type="text" class="form-control" id="firstName" placeholder="Enter first name" required>
+          </div>
+          <div class="form-group">
+            <label for="lastName">Last Name</label>
+            <input type="text" class="form-control" id="lastName" placeholder="Enter last name" required>
+          </div>
+          <div class="form-group">
+            <label for="dob">Date of Birth</label>
+            <input type="date" class="form-control" id="dob" required>
+          </div>
+          <div class="form-group">
+            <label for="aadharNo">Aadhar Number</label>
+            <input type="text" class="form-control" id="aadharNo" placeholder="Enter 12-digit Aadhar number" required>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" required> I agree to the terms and conditions
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block btn-lg" id="registerBtn">
+            <i class="bi bi-person-plus"></i> Register on Blockchain
+          </button>
+        </form>
+        <p class="text-muted mt-2" id="registerStatus" style="font-size:0.85rem;"></p>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Check wallet connection on load
+  (async function () {
+    if (!window.ethereum) {
+      document.getElementById('connectedWallet').innerHTML = '<span class="text-red">MetaMask not found</span>';
+      return;
+    }
+    window.web3 = new Web3(ethereum);
+    const accounts = await web3.eth.getAccounts();
+    const addr = accounts[0] || localStorage.getItem('userAddress');
+    if (addr) {
+      document.getElementById('connectedWallet').textContent = addr.slice(0, 6) + '...' + addr.slice(-4);
+      localStorage.setItem('userAddress', addr);
+    } else {
+      document.getElementById('connectedWallet').innerHTML = '<span class="text-red">Not connected</span>';
+    }
+    await loadContractDetails();
+  })();
+
+  async function registerUser(event) {
+    event.preventDefault();
+    const status = document.getElementById('registerStatus');
+    const btn = document.getElementById('registerBtn');
+
+    const fname = document.getElementById('firstName').value;
+    const lname = document.getElementById('lastName').value;
+    const dob = document.getElementById('dob').value;
+    const aadhar = document.getElementById('aadharNo').value;
+    const account = localStorage.getItem('userAddress');
+
+    if (!account) { status.innerHTML = '<span class="text-red">Please connect wallet first</span>'; return; }
+
+    try {
+      const accounts = await web3.eth.getAccounts();
+      if (accounts[0] !== account) {
+        status.innerHTML = '<span class="text-red">Wrong MetaMask account. Please switch.</span>';
+        return;
+      }
+
+      btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;display:inline-block;"></div> Registering...';
+      btn.disabled = true;
+
+      const abi = JSON.parse(localStorage.getItem('Users_ContractABI'));
+      const addr = localStorage.getItem('Users_ContractAddress');
+      const contract = new web3.eth.Contract(abi, addr);
+
+      await contract.methods.registerUser(fname, lname, dob, aadhar).send({ from: account });
+
+      // Log transaction
+      fetch('/api/log-transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ txType: 'User Registration', fromAddress: account, details: `${fname} ${lname}` })
+      });
+
+      status.innerHTML = '<span class="text-accent">✓ Registered successfully! Redirecting...</span>';
+      setTimeout(() => window.location.href = '/user/dashboard', 1200);
+    } catch (error) {
+      btn.innerHTML = '<i class="bi bi-person-plus"></i> Register on Blockchain';
+      btn.disabled = false;
+      const reason = parseError(error);
+      status.innerHTML = `<span class="text-red">${reason}</span>`;
+    }
+  }
+</script>
+{% endblock %}

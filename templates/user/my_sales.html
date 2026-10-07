@@ -1,0 +1,97 @@
+{% extends 'app_layout.html' %}
+{% block page_title %}My Sales{% endblock %}
+{% block content %}
+<div class="page-header"><h1>My Sales</h1><p>Manage your property listings and buyer requests</p></div>
+<div id="salesList"><div class="empty-state"><div class="icon"><i class="bi bi-hourglass"></i></div><h3>Loading sales...</h3></div></div>
+{% endblock %}
+{% block page_scripts %}
+<script>
+const RS={0:'Sent',1:'Cancelled',2:'Accepted',3:'Rejected',4:'Seller Cancelled',5:'You Rejected',6:'Re-requested',7:'Transferred'};
+const RB={0:'badge-info',1:'badge-danger',2:'badge-success',3:'badge-danger',4:'badge-warning',5:'badge-warning',6:'badge-info',7:'badge-success'};
+const SS={0:'Active',1:'Accepted',2:'Cancelled',3:'Success',4:'Deadline Over',5:'Seller Cancelled Acceptance',6:'Buyer Rejected'};
+
+async function loadSales(){
+  const account=localStorage.getItem('userAddress');
+  const container=document.getElementById('salesList');
+  try{
+    const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr=localStorage.getItem('TransferOwnership_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    const sales=await c.methods.getMySales(account).call();
+    if(!sales.length){container.innerHTML='<div class="empty-state"><div class="icon"><i class="bi bi-tag"></i></div><h3>No Sales Created</h3><p>List a verified property for sale from your dashboard</p></div>';return;}
+    let html='';
+    for(const sale of sales){
+      const eth=web3.utils.fromWei(sale.price,'ether');
+      const state=parseInt(sale.state);
+      const requests=await c.methods.getRequestedUsers(sale.saleId).call();
+      let reqHtml='';
+      if(requests.length>0){
+        reqHtml='<div style="margin-top:16px;"><strong style="font-size:0.85rem;">Buyer Requests:</strong>';
+        requests.forEach((r,i)=>{
+          const rs=parseInt(r.state);
+          const offeredEth=web3.utils.fromWei(r.priceOffered,'ether');
+          let actions='';
+          if(state===0 && rs===0){
+            actions=`<button class="btn btn-sm btn-primary" onclick="acceptBuyer(${sale.saleId},'${r.user}',${offeredEth})">Accept</button> <button class="btn btn-sm btn-danger" onclick="rejectBuyer(${sale.saleId},'${r.user}')">Reject</button>`;
+          }
+          reqHtml+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border-glass);font-size:0.85rem;">
+            <div><span class="text-muted">${r.user.slice(0,6)}...${r.user.slice(-4)}</span> offered <strong>${offeredEth} ETH</strong> <span class="badge ${RB[rs]}" style="margin-left:8px;">${RS[rs]}</span></div>
+            <div>${actions}</div></div>`;
+        });
+        reqHtml+='</div>';
+      }
+      let saleActions='';
+      if(state===0) saleActions=`<button class="btn btn-sm btn-danger" onclick="cancelSale(${sale.saleId})"><i class="bi bi-x"></i> Cancel Sale</button>`;
+      if(state===4||state===5||state===6) saleActions=`<button class="btn btn-sm btn-primary" onclick="reactivateSale(${sale.saleId})"><i class="bi bi-arrow-repeat"></i> Reactivate</button>`;
+      html+=`<div class="card mb-2">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div><h3 style="margin-bottom:4px;">Property #${sale.propertyId} — ${eth} ETH</h3><span class="badge ${state===3?'badge-success':state===0?'badge-info':'badge-warning'}">${SS[state]||'Unknown'}</span></div>
+          <div>${saleActions}</div></div>
+        ${reqHtml}</div>`;
+    }
+    container.innerHTML=html;
+  }catch(e){console.error(e);showToast('Error loading sales','error');}
+}
+async function acceptBuyer(saleId,buyer,price){
+  const account=localStorage.getItem('userAddress');
+  try{showLoading('Accepting buyer...');
+    const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr=localStorage.getItem('TransferOwnership_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    await c.methods.acceptBuyerRequest(saleId,buyer,price).send({from:account});
+    hideLoading();showToast('Buyer accepted!','success');loadSales();
+  }catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+async function rejectBuyer(saleId,buyer){
+  const account=localStorage.getItem('userAddress');
+  try{showLoading('Rejecting...');
+    const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr=localStorage.getItem('TransferOwnership_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    await c.methods.rejectPurchaseRequestOfBuyer(saleId,buyer).send({from:account});
+    hideLoading();showToast('Request rejected','success');loadSales();
+  }catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+async function cancelSale(saleId){
+  const account=localStorage.getItem('userAddress');
+  try{showLoading('Cancelling sale...');
+    const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr=localStorage.getItem('TransferOwnership_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    await c.methods.cancelSaleBySeller(saleId).send({from:account});
+    hideLoading();showToast('Sale cancelled','success');loadSales();
+  }catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+async function reactivateSale(saleId){
+  const account=localStorage.getItem('userAddress');
+  try{showLoading('Reactivating...');
+    const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr=localStorage.getItem('TransferOwnership_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    await c.methods.reactivateSale(saleId).send({from:account});
+    hideLoading();showToast('Sale reactivated','success');loadSales();
+  }catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+loadSales();
+</script>
+{% endblock %}

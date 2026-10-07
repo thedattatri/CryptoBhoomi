@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Properties{% endblock %}
+{% block body %}
+<div class="landing-page">
+  <nav class="landing-nav">
+    <div class="logo">Crypto<span>Bhoomi</span></div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/about">About</a>
+      <a href="/properties">Properties</a>
+      <a href="/login" class="btn btn-sm btn-secondary">Login</a>
+    </div>
+  </nav>
+
+  <section class="features-section" style="padding-top:120px;">
+    <h2>Properties Available for Sale</h2>
+    <p class="text-muted text-center mb-3">Browse verified properties listed on the blockchain</p>
+
+    <div style="max-width:1100px;margin:0 auto;">
+      <!-- Search Bar -->
+      <div class="card mb-3" style="padding:16px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <input type="number" class="form-control" id="searchLocation" placeholder="Enter Location ID to search"
+            style="flex:1;min-width:200px;">
+          <button class="btn btn-primary" onclick="searchProperties()">
+            <i class="bi bi-search"></i> Search
+          </button>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="propertiesGrid" class="feature-grid">
+        <div class="empty-state" style="grid-column:1/-1;">
+          <div class="icon"><i class="bi bi-buildings"></i></div>
+          <h3>Enter a Location ID</h3>
+          <p>Search by location to find available properties</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <p>&copy; 2024 CryptoBhoomi — Blockchain-Based Land Registration System</p>
+  </footer>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function searchProperties() {
+    const locationId = document.getElementById('searchLocation').value;
+    const grid = document.getElementById('propertiesGrid');
+
+    if (!locationId) { showToast('Please enter a location ID', 'warning'); return; }
+
+    if (!window.ethereum) { showToast('MetaMask required to view blockchain data', 'error'); return; }
+
+    try {
+      window.web3 = new Web3(ethereum);
+      await loadContractDetails();
+
+      const abi = JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+      const addr = localStorage.getItem('TransferOwnership_ContractAddress');
+      const contract = new web3.eth.Contract(abi, addr);
+
+      const sales = await contract.methods.getSalesByLocation(locationId).call();
+      const activeSales = sales.filter(s => s.state === '0');
+
+      if (activeSales.length === 0) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon"><i class="bi bi-search"></i></div><h3>No Properties Found</h3><p>No active listings in location ${locationId}</p></div>`;
+        return;
+      }
+
+      const lrAbi = JSON.parse(localStorage.getItem('LandRegistry_ContractABI'));
+      const lrAddr = localStorage.getItem('LandRegistry_ContractAddress');
+      const lrContract = new web3.eth.Contract(lrAbi, lrAddr);
+
+      let html = '';
+      for (const sale of activeSales) {
+        const details = await lrContract.methods.getPropertyDetails(sale.propertyId).call();
+        const priceEth = web3.utils.fromWei(sale.price, 'ether');
+        html += `
+        <div class="feature-card">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px;">
+            <span class="badge badge-success">On Sale</span>
+            <span class="text-muted" style="font-size:0.8rem;">ID: ${sale.propertyId}</span>
+          </div>
+          <h3>${priceEth} ETH</h3>
+          <p class="text-muted" style="font-size:0.85rem;">
+            Survey #${details.surveyNumber} &bull; ${details.area} sq ft<br>
+            Location: ${details.locationId}<br>
+            Owner: ${sale.owner.slice(0, 6)}...${sale.owner.slice(-4)}
+          </p>
+          <a href="/api/property-doc/${sale.propertyId}" target="_blank" class="btn btn-sm btn-secondary mt-2" style="width:100%;">
+            <i class="bi bi-file-pdf"></i> View Documents
+          </a>
+        </div>`;
+      }
+      grid.innerHTML = html;
+    } catch (error) {
+      console.error(error);
+      showToast('Error fetching properties', 'error');
+    }
+  }
+</script>
+{% endblock %}

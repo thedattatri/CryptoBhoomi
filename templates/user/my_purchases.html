@@ -1,0 +1,82 @@
+{% extends 'app_layout.html' %}
+{% block page_title %}My Purchases{% endblock %}
+{% block content %}
+<div class="page-header"><h1>My Purchase Requests</h1><p>Track your purchase requests and make payments</p></div>
+<div id="purchasesList"><div class="empty-state"><div class="icon"><i class="bi bi-hourglass"></i></div><h3>Loading...</h3></div></div>
+{% endblock %}
+{% block page_scripts %}
+<script>
+const RS2={0:'Pending',1:'Cancelled',2:'Accepted ✓',3:'Rejected',4:'Seller Cancelled',5:'You Rejected',6:'Re-requested',7:'Transferred ✓'};
+const RB2={0:'badge-info',1:'badge-danger',2:'badge-success',3:'badge-danger',4:'badge-warning',5:'badge-warning',6:'badge-info',7:'badge-success'};
+
+async function loadPurchases(){
+  const account=localStorage.getItem('userAddress');
+  const container=document.getElementById('purchasesList');
+  try{
+    const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr=localStorage.getItem('TransferOwnership_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    const sales=await c.methods.getRequestedSales(account).call();
+    if(!sales.length){container.innerHTML='<div class="empty-state"><div class="icon"><i class="bi bi-cart"></i></div><h3>No Purchase Requests</h3><p>Browse <a href="/user/available-to-buy" class="text-accent">available properties</a> to send requests</p></div>';return;}
+    let html='';
+    for(const sale of sales){
+      const eth=web3.utils.fromWei(sale.price,'ether');
+      const myStatus=await c.methods.getStatusOfPurchaseRequest(sale.saleId).call({from:account});
+      const rs=parseInt(myStatus.state);
+      const offeredEth=web3.utils.fromWei(myStatus.priceOffered,'ether');
+      let actions='';
+      // Accepted - can pay
+      if(rs===2){
+        const acceptedEth=web3.utils.fromWei(sale.acceptedPrice,'ether');
+        const deadline=new Date(parseInt(sale.deadlineForPayment)*1000);
+        actions=`<div class="mt-1" style="padding:12px;background:rgba(16,185,129,0.1);border-radius:var(--radius-sm);">
+          <strong class="text-accent">Accepted!</strong> Pay <strong>${acceptedEth} ETH</strong> before ${deadline.toLocaleString()}<br>
+          <button class="btn btn-primary mt-1" onclick="makePayment(${sale.saleId},'${sale.acceptedPrice}')"><i class="bi bi-credit-card"></i> Pay Now</button>
+          <button class="btn btn-sm btn-danger mt-1" onclick="rejectAcceptance(${sale.saleId})">Decline</button></div>`;
+      }
+      // Can cancel if pending
+      if(rs===0) actions=`<button class="btn btn-sm btn-danger" onclick="cancelRequest(${sale.saleId})">Cancel Request</button>`;
+      // Can re-request if rejected
+      if(rs===3||rs===4||rs===5) actions=`<button class="btn btn-sm btn-primary" onclick="reRequest(${sale.saleId})">Re-request</button>`;
+
+      html+=`<div class="card mb-2">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div><h3 style="margin-bottom:4px;">Property #${sale.propertyId} — Listed at ${eth} ETH</h3>
+            <p class="text-muted" style="font-size:0.85rem;">Seller: ${sale.owner.slice(0,6)}...${sale.owner.slice(-4)} &bull; Your offer: ${offeredEth} ETH</p>
+            <span class="badge ${RB2[rs]}">${RS2[rs]}</span></div></div>
+        ${actions}</div>`;
+    }
+    container.innerHTML=html;
+  }catch(e){console.error(e);showToast('Error loading','error');}
+}
+async function makePayment(saleId,weiAmount){
+  const account=localStorage.getItem('userAddress');
+  try{showLoading('Processing payment & transferring ownership...');
+    const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr=localStorage.getItem('TransferOwnership_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    await c.methods.transferOwnerShip(saleId).send({from:account,value:weiAmount});
+    fetch('/api/log-transaction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({txType:'Ownership Transfer',fromAddress:account,amount:web3.utils.fromWei(weiAmount,'ether'),details:`Sale ${saleId}`})});
+    hideLoading();showToast('Payment successful! Ownership transferred!','success');loadPurchases();
+  }catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+async function cancelRequest(saleId){
+  const account=localStorage.getItem('userAddress');
+  try{showLoading('Cancelling...');const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));const addr=localStorage.getItem('TransferOwnership_ContractAddress');const c=new web3.eth.Contract(abi,addr);
+    await c.methods.cancelPurchaseRequestSentToSeller(saleId).send({from:account});hideLoading();showToast('Cancelled','success');loadPurchases();}catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+async function rejectAcceptance(saleId){
+  const account=localStorage.getItem('userAddress');
+  try{showLoading('Declining...');const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));const addr=localStorage.getItem('TransferOwnership_ContractAddress');const c=new web3.eth.Contract(abi,addr);
+    await c.methods.rejectingAcceptanceRequestByBuyer(saleId).send({from:account});hideLoading();showToast('Declined','success');loadPurchases();}catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+async function reRequest(saleId){
+  const price=await showPrompt('Enter new offer price (ETH):');
+  if(!price||price<=0)return;
+  const account=localStorage.getItem('userAddress');
+  try{showLoading('Re-requesting...');const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));const addr=localStorage.getItem('TransferOwnership_ContractAddress');const c=new web3.eth.Contract(abi,addr);
+    await c.methods.rerequestPurchaseRequest(saleId,price).send({from:account});hideLoading();showToast('Re-requested!','success');loadPurchases();}catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+loadPurchases();
+</script>
+{% endblock %}

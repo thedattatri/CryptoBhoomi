@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Audit Logs{% endblock %}
+{% block body %}
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><div class="logo">Block<span>Land</span></div><div class="subtitle">Admin Panel</div></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Overview</div><a href="/admin/dashboard"><span class="nav-icon"><i class="bi bi-speedometer2"></i></span> Dashboard</a>
+      <div class="nav-section">Management</div><a href="/admin/manage-officers"><span class="nav-icon"><i class="bi bi-person-badge"></i></span> Manage Officers</a><a href="/admin/manage-users"><span class="nav-icon"><i class="bi bi-people"></i></span> Manage Users</a><a href="/admin/all-properties"><span class="nav-icon"><i class="bi bi-building"></i></span> All Properties</a>
+      <div class="nav-section">Reports</div><a href="/admin/all-transactions"><span class="nav-icon"><i class="bi bi-receipt"></i></span> Transactions</a><a href="/admin/audit-logs" class="active"><span class="nav-icon"><i class="bi bi-journal-text"></i></span> Audit Logs</a><a href="/admin/reports"><span class="nav-icon"><i class="bi bi-graph-up"></i></span> Reports</a>
+      <div class="nav-section">Account</div><a href="/logout"><span class="nav-icon"><i class="bi bi-box-arrow-left"></i></span> Logout</a>
+    </nav>
+  </aside>
+  <div class="main-content">
+    <header class="topbar"><div style="display:flex;align-items:center;gap:12px;"><button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="bi bi-list"></i></button><span class="page-title">Audit Logs</span></div><div class="topbar-actions"><span class="badge badge-success">Admin</span></div></header>
+    <div class="page-content fade-in">
+      <div class="page-header"><h1>Audit Logs</h1><p>Immutable audit trail of all system activities</p></div>
+      <div class="table-container"><table><thead><tr><th>Action</th><th>User</th><th>Category</th><th>Details</th><th>Timestamp</th></tr></thead><tbody id="logBody"><tr><td colspan="5" class="text-center text-muted" style="padding:40px;">Loading...</td></tr></tbody></table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/app.js"></script><script>
+(async()=>{try{const r=await fetch('/api/audit-logs');const d=await r.json();if(d.status===1&&d.logs.length){let h='';d.logs.forEach(l=>{const catBadge=l.category==='auth'?'badge-info':l.category==='admin'?'badge-purple':l.category==='property'?'badge-success':'badge-warning';h+=`<tr><td><strong>${l.action}</strong></td><td>${(l.user||'').slice(0,12)}${l.user&&l.user.length>12?'...':''}</td><td><span class="badge ${catBadge}">${l.category}</span></td><td class="text-muted">${l.details||'-'}</td><td class="text-muted" style="font-size:0.8rem;">${new Date(l.timestamp).toLocaleString()}</td></tr>`;});document.getElementById('logBody').innerHTML=h;}else{document.getElementById('logBody').innerHTML='<tr><td colspan="5" class="text-center text-muted" style="padding:40px;">No audit logs</td></tr>';}
+}catch(e){document.getElementById('logBody').innerHTML='<tr><td colspan="5" class="text-center text-muted">Error loading</td></tr>';}})();
+</script>{% endblock %}

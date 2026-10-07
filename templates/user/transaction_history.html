@@ -1,0 +1,29 @@
+{% extends 'app_layout.html' %}
+{% block page_title %}Transaction History{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Transaction History</h1><p>All your blockchain transactions</p></div>
+<div class="table-container">
+  <table>
+    <thead><tr><th>Type</th><th>From</th><th>To</th><th>Property</th><th>Amount</th><th>Details</th><th>Time</th></tr></thead>
+    <tbody id="txBody"><tr><td colspan="7" class="text-center text-muted" style="padding:40px;">Loading...</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block page_scripts %}
+<script>
+(async()=>{
+  const account=localStorage.getItem('userAddress');
+  if(!account)return;
+  try{
+    const res=await fetch(`/api/transactions/${account}`);
+    const data=await res.json();
+    if(data.status!==1||!data.transactions.length){document.getElementById('txBody').innerHTML='<tr><td colspan="7" class="text-center text-muted" style="padding:40px;">No transactions yet</td></tr>';return;}
+    let h='';
+    data.transactions.forEach(t=>{
+      h+=`<tr><td><span class="badge badge-info">${t.tx_type}</span></td><td>${(t.from_address||'').slice(0,8)}...</td><td>${(t.to_address||'-').slice(0,8)}${t.to_address?'...':''}</td><td>${t.property_id||'-'}</td><td>${t.amount||'-'}</td><td>${t.details||'-'}</td><td class="text-muted" style="font-size:0.8rem;">${new Date(t.timestamp).toLocaleString()}</td></tr>`;
+    });
+    document.getElementById('txBody').innerHTML=h;
+  }catch(e){showToast('Error loading transactions','error');}
+})();
+</script>
+{% endblock %}

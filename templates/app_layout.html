@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block body %}
+<div class="app-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Crypto<span>Bhoomi</span></div>
+      <div class="subtitle">{{ role_label|default('User Portal') }}</div>
+    </div>
+    <nav class="sidebar-nav">
+      {% block sidebar_nav %}
+      <div class="nav-section">Main</div>
+      <a href="/user/dashboard" class="{{ 'active' if active_page == 'dashboard' else '' }}">
+        <span class="nav-icon"><i class="bi bi-grid"></i></span> Dashboard
+      </a>
+      <a href="/user/my-properties" class="{{ 'active' if active_page == 'my-properties' else '' }}">
+        <span class="nav-icon"><i class="bi bi-house"></i></span> My Properties
+      </a>
+      <a href="/user/register-land" class="{{ 'active' if active_page == 'register-land' else '' }}">
+        <span class="nav-icon"><i class="bi bi-plus-circle"></i></span> Register Land
+      </a>
+
+      <div class="nav-section">Marketplace</div>
+      <a href="/user/available-to-buy" class="{{ 'active' if active_page == 'available-to-buy' else '' }}">
+        <span class="nav-icon"><i class="bi bi-shop"></i></span> Available to Buy
+      </a>
+      <a href="/user/my-sales" class="{{ 'active' if active_page == 'my-sales' else '' }}">
+        <span class="nav-icon"><i class="bi bi-tag"></i></span> My Sales
+      </a>
+      <a href="/user/my-purchases" class="{{ 'active' if active_page == 'my-purchases' else '' }}">
+        <span class="nav-icon"><i class="bi bi-cart"></i></span> My Purchases
+      </a>
+
+      <div class="nav-section">Account</div>
+      <a href="/user/transactions" class="{{ 'active' if active_page == 'transactions' else '' }}">
+        <span class="nav-icon"><i class="bi bi-clock-history"></i></span> Transaction History
+      </a>
+      <a href="/logout" onclick="disconnectWallet()">
+        <span class="nav-icon"><i class="bi bi-box-arrow-left"></i></span> Logout
+      </a>
+      {% endblock %}
+    </nav>
+    <div class="sidebar-footer">
+      <div class="wallet-badge">
+        <div class="dot"></div>
+        <span id="sidebarWallet">Not connected</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+        <span class="page-title">{% block page_title %}Dashboard{% endblock %}</span>
+      </div>
+      <div class="topbar-actions">
+        <div style="position:relative;">
+          <button class="notif-btn" onclick="toggleNotifications()" id="notifBtn">
+            <i class="bi bi-bell"></i>
+            <span class="notif-badge hidden" id="notifBadge">0</span>
+          </button>
+          <div class="notif-dropdown" id="notifDropdown">
+            <div class="notif-header">Notifications</div>
+            <div id="notifList">
+              <div class="notif-item text-muted">No notifications</div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-secondary" id="topbarUser">
+          <i class="bi bi-person-circle"></i> <span id="topbarUserName">User</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="page-content fade-in">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+
+<!-- Prompt Modal for Price Input -->
+<div class="prompt-overlay" id="promptOverlay">
+  <div class="prompt-box">
+    <label id="promptLabel">Enter Value:</label>
+    <input type="number" class="form-control" id="promptInput" placeholder="Enter amount">
+    <div class="prompt-btns">
+      <button class="btn btn-primary" id="promptOk" onclick="resolvePrompt()">OK</button>
+      <button class="btn btn-secondary" id="promptCancel" onclick="cancelPrompt()">Cancel</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Initialize wallet display on sidebar
+  (async function initAppLayout() {
+    const addr = localStorage.getItem('userAddress');
+    if (addr) {
+      document.getElementById('sidebarWallet').textContent = addr.slice(0, 6) + '...' + addr.slice(-4);
+    }
+    // Load user name
+    if (window.ethereum) {
+      try {
+        window.web3 = new Web3(ethereum);
+        await loadContractDetails();
+        const accounts = await web3.eth.getAccounts();
+        const account = accounts[0] || addr;
+
+        if (account && account !== addr) {
+          showToast('Account changed! Please reconnect.', 'warning');
+          window.location.href = '/';
+          return;
+        }
+
+        if (account) {
+          const abi = JSON.parse(localStorage.getItem('Users_ContractABI'));
+          const cAddr = localStorage.getItem('Users_ContractAddress');
+          if (abi && cAddr) {
+            const contract = new web3.eth.Contract(abi, cAddr);
+            const user = await contract.methods.users(account).call();
+            if (user.userID === account) {
+              document.getElementById('topbarUserName').textContent = user.firstName;
+            }
+          }
+        }
+      } catch (e) { console.log('Init error:', e); }
+    }
+  })();
+
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+  }
+</script>
+{% block page_scripts %}{% endblock %}
+{% endblock %}

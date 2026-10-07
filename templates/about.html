@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}About{% endblock %}
+{% block body %}
+<div class="landing-page">
+  <nav class="landing-nav">
+    <div class="logo">Crypto<span>Bhoomi</span></div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/about">About</a>
+      <a href="/properties">Properties</a>
+      <a href="/login" class="btn btn-sm btn-secondary">Login</a>
+    </div>
+  </nav>
+
+  <section class="features-section" style="padding-top:120px;">
+    <div style="max-width:800px;margin:0 auto;">
+      <h1 style="font-size:2.4rem;margin-bottom:16px;">About This Project</h1>
+      <p style="color:var(--text-secondary);font-size:1.1rem;margin-bottom:40px;">
+        The Blockchain-Based Land Registration System is a decentralized application (DApp) built on the Ethereum
+        blockchain
+        to revolutionize how land ownership is recorded and transferred.
+      </p>
+
+      <div class="card mb-3">
+        <h3 class="card-title"><i class="bi bi-exclamation-triangle text-amber"></i> Problems with Traditional System
+        </h3>
+        <ul style="color:var(--text-secondary);padding-left:20px;line-height:2;">
+          <li>Prone to fraud and manipulation of records</li>
+          <li>Slow and cumbersome property transfer process</li>
+          <li>Manual paperwork leads to inefficiencies and delays</li>
+          <li>Lack of transparency in ownership records</li>
+          <li>Third-party involvement increases costs</li>
+          <li>Difficulty in resolving disputes</li>
+          <li>Risk of data loss in centralized databases</li>
+        </ul>
+      </div>
+
+      <div class="card mb-3">
+        <h3 class="card-title"><i class="bi bi-check-circle text-accent"></i> Our Blockchain Solution</h3>
+        <ul style="color:var(--text-secondary);padding-left:20px;line-height:2;">
+          <li>Immutable records — no one can alter ownership data</li>
+          <li>Transparent — all transactions publicly verifiable</li>
+          <li>Instant transfers via smart contracts</li>
+          <li>No intermediaries required</li>
+          <li>Government verification built into the workflow</li>
+          <li>Secure Ether payments via MetaMask</li>
+          <li>Complete audit trail of all activities</li>
+        </ul>
+      </div>
+
+      <div class="card mb-3">
+        <h3 class="card-title"><i class="bi bi-cpu text-blue"></i> Technology Stack</h3>
+        <div class="grid-3" style="margin-top:16px;">
+          <div><strong>Frontend</strong>
+            <p class="text-muted" style="font-size:0.9rem;">HTML5, CSS3, JavaScript, Bootstrap 5</p>
+          </div>
+          <div><strong>Backend</strong>
+            <p class="text-muted" style="font-size:0.9rem;">Python Flask, MongoDB</p>
+          </div>
+          <div><strong>Blockchain</strong>
+            <p class="text-muted" style="font-size:0.9rem;">Solidity, Ethereum, Ganache, Truffle</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <p>&copy; 2024 CryptoBhoomi — Blockchain-Based Land Registration System</p>
+  </footer>
+</div>
+{% endblock %}

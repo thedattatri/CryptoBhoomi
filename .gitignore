@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Node/Blockchain
+node_modules/
+build/
+.truffle/
+
+# Sensitive config
+config.json
+.env
+
+# Uploads
+uploads/
+
+# OS/IDEs
+.vscode/
+.DS_Store
+Thumbs.db
+.gemini/

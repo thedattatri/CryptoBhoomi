@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% block title %}Login{% endblock %}
+{% block body %}
+<div class="landing-page">
+  <nav class="landing-nav">
+    <div class="logo">Crypto<span>Bhoomi</span></div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/about">About</a>
+      <a href="/properties">Properties</a>
+    </div>
+  </nav>
+
+  <section class="hero" style="min-height:100vh;">
+    <div style="max-width:480px;width:100%;">
+      <h2 style="margin-bottom:8px;">Portal Login</h2>
+      <p class="text-muted" style="margin-bottom:32px;">Connect your wallet to login as Revenue Officer or Admin</p>
+
+      <!-- Connect Wallet Section -->
+      <div id="connectWalletSection" style="text-align:center; padding: 40px 0;">
+        <button class="btn btn-primary btn-lg" onclick="connectWalletForLogin()" id="connectBtn">
+          <i class="bi bi-wallet2"></i> Connect MetaMask
+        </button>
+        <p class="mt-3 text-muted" id="connectStatus" style="font-size:0.85rem;"></p>
+      </div>
+
+      <!-- Login Forms Section (Hidden by default) -->
+      <div id="loginFormsSection" class="hidden">
+        <!-- Role Tabs -->
+        <div style="display:flex;gap:8px;margin-bottom:24px;">
+          <button class="btn btn-secondary" id="tabOfficer" onclick="switchTab('officer')" style="flex:1;">
+            <i class="bi bi-person-badge"></i> Revenue Officer
+          </button>
+          <button class="btn btn-secondary" id="tabAdmin" onclick="switchTab('admin')" style="flex:1;">
+            <i class="bi bi-gear"></i> Admin
+          </button>
+        </div>
+
+        <!-- Officer Login Form -->
+        <div class="card" id="officerForm">
+          <h3 class="card-title">Revenue Officer Login</h3>
+          <div class="form-group">
+            <label for="officerWallet">Wallet Address / Employee ID</label>
+            <input type="text" class="form-control" id="officerWallet" readonly
+              style="background-color: rgba(255,255,255,0.05);">
+          </div>
+          <div class="form-group">
+            <label for="officerPassword">Password</label>
+            <input type="password" class="form-control" id="officerPassword" placeholder="Enter password">
+          </div>
+          <button class="btn btn-primary btn-block" onclick="loginOfficer()" id="officerLoginBtn">
+            <i class="bi bi-box-arrow-in-right"></i> Login
+          </button>
+          <p class="text-muted mt-2" id="officerStatus" style="font-size:0.85rem;"></p>
+        </div>
+
+        <!-- Admin Login Form -->
+        <div class="card hidden" id="adminForm">
+          <h3 class="card-title">Admin Login</h3>
+          <div class="form-group">
+            <label for="adminAddress">Admin Wallet Address</label>
+            <input type="text" class="form-control" id="adminAddress" readonly
+              style="background-color: rgba(255,255,255,0.05);">
+          </div>
+          <div class="form-group">
+            <label for="adminPassword">Password</label>
+            <input type="password" class="form-control" id="adminPassword" placeholder="Enter password">
+          </div>
+          <button class="btn btn-primary btn-block" onclick="loginAdmin()" id="adminLoginBtn">
+            <i class="bi bi-box-arrow-in-right"></i> Login
+          </button>
+          <p class="text-muted mt-2" id="adminStatus" style="font-size:0.85rem;"></p>
+        </div>
+      </div>
+
+      <p class="text-muted mt-4" style="font-size:0.85rem; text-align:center;">
+        Are you a land owner or buyer? <a href="/" style="color:var(--accent);">Connect your MetaMask wallet</a> on the
+        home page.
+      </p>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/web3.min.js"></script>
+<script src="/static/js/app.js"></script>
+<script>
+  async function connectWalletForLogin() {
+    const btn = document.getElementById('connectBtn');
+    const status = document.getElementById('connectStatus');
+
+    if (!window.ethereum) {
+      status.innerHTML = '<span class="text-red">MetaMask not detected. Please install it.</span>';
+      return;
+    }
+
+    btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;"></div> Connecting...';
+    try {
+      window.web3 = new Web3(ethereum);
+      await window.ethereum.request({ method: "wallet_requestPermissions", params: [{ eth_accounts: {} }] });
+
+      const accounts = await web3.eth.getAccounts();
+      const account = accounts[0];
+
+      // Set to readonly inputs
+      document.getElementById('officerWallet').value = account;
+      document.getElementById('adminAddress').value = account;
+
+      document.getElementById('connectWalletSection').classList.add('hidden');
+      document.getElementById('loginFormsSection').classList.remove('hidden');
+
+    } catch (error) {
+      btn.innerHTML = '<i class="bi bi-wallet2"></i> Connect MetaMask';
+      status.innerHTML = `<span class="text-red">Connection failed: ${error.message}</span>`;
+    }
+  }
+
+  function switchTab(tab) {
+    document.getElementById('officerForm').classList.toggle('hidden', tab !== 'officer');
+    document.getElementById('adminForm').classList.toggle('hidden', tab !== 'admin');
+    document.getElementById('tabOfficer').classList.toggle('btn-primary', tab === 'officer');
+    document.getElementById('tabOfficer').classList.toggle('btn-secondary', tab !== 'officer');
+    document.getElementById('tabAdmin').classList.toggle('btn-primary', tab === 'admin');
+    document.getElementById('tabAdmin').classList.toggle('btn-secondary', tab !== 'admin');
+  }
+  switchTab('officer');
+
+  async function loginOfficer() {
+    const empId = document.getElementById('officerWallet').value;
+    const pwd = document.getElementById('officerPassword').value;
+    const status = document.getElementById('officerStatus');
+
+    if (!empId || !pwd) { status.innerHTML = '<span class="text-red">Please fill all fields</span>'; return; }
+
+    const formData = new FormData();
+    formData.append('employeeId', empId);
+    formData.append('password', pwd);
+
+    try {
+      const res = await fetch('/officer/login', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.status === 1) {
+        localStorage.setItem('empName', data.empName);
+        localStorage.setItem('revenueDeptId', data.revenueDepartmentId);
+        localStorage.setItem('userAddress', empId);
+        status.innerHTML = '<span class="text-accent">✓ Login successful! Redirecting...</span>';
+        setTimeout(() => window.location.href = '/officer/dashboard', 800);
+      } else {
+        status.innerHTML = `<span class="text-red">${data.msg}</span>`;
+      }
+    } catch (e) {
+      status.innerHTML = '<span class="text-red">Server error. Please try again.</span>';
+    }
+  }
+
+  async function loginAdmin() {
+    const addr = document.getElementById('adminAddress').value;
+    const pwd = document.getElementById('adminPassword').value;
+    const status = document.getElementById('adminStatus');
+
+    if (!addr || !pwd) { status.innerHTML = '<span class="text-red">Please fill all fields</span>'; return; }
+
+    const formData = new FormData();
+    formData.append('adminAddress', addr);
+    formData.append('password', pwd);
+
+    try {
+      const res = await fetch('/admin/login', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.status === 1) {
+        localStorage.setItem('userAddress', addr);
+        status.innerHTML = '<span class="text-accent">✓ Admin login successful! Redirecting...</span>';
+        setTimeout(() => window.location.href = '/admin/dashboard', 800);
+      } else {
+        status.innerHTML = `<span class="text-red">${data.msg}</span>`;
+      }
+    } catch (e) {
+      status.innerHTML = '<span class="text-red">Server error. Please try again.</span>';
+    }
+  }
+</script>
+{% endblock %}

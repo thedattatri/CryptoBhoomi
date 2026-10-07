@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block body %}
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><div class="logo">Block<span>Land</span></div><div class="subtitle">Admin Panel</div></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Overview</div>
+      <a href="/admin/dashboard" class="active"><span class="nav-icon"><i class="bi bi-speedometer2"></i></span> Dashboard</a>
+      <div class="nav-section">Management</div>
+      <a href="/admin/manage-officers"><span class="nav-icon"><i class="bi bi-person-badge"></i></span> Manage Officers</a>
+      <a href="/admin/manage-users"><span class="nav-icon"><i class="bi bi-people"></i></span> Manage Users</a>
+      <a href="/admin/all-properties"><span class="nav-icon"><i class="bi bi-building"></i></span> All Properties</a>
+      <div class="nav-section">Reports</div>
+      <a href="/admin/all-transactions"><span class="nav-icon"><i class="bi bi-receipt"></i></span> Transactions</a>
+      <a href="/admin/audit-logs"><span class="nav-icon"><i class="bi bi-journal-text"></i></span> Audit Logs</a>
+      <a href="/admin/reports"><span class="nav-icon"><i class="bi bi-graph-up"></i></span> Reports</a>
+      <div class="nav-section">Account</div>
+      <a href="/logout"><span class="nav-icon"><i class="bi bi-box-arrow-left"></i></span> Logout</a>
+    </nav>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="bi bi-list"></i></button>
+        <span class="page-title">Admin Dashboard</span>
+      </div>
+      <div class="topbar-actions"><span class="badge badge-success">Admin</span></div>
+    </header>
+
+    <div class="page-content fade-in">
+      <div class="page-header"><h1>System Overview</h1><p>Monitor blockchain activity and manage the platform</p></div>
+
+      <div class="grid-4 mb-3">
+        <div class="stat-card"><div class="stat-icon green"><i class="bi bi-people"></i></div><div class="stat-value" id="sUsers">-</div><div class="stat-label">Registered Users</div></div>
+        <div class="stat-card"><div class="stat-icon blue"><i class="bi bi-person-badge"></i></div><div class="stat-value" id="sOfficers">-</div><div class="stat-label">Officers</div></div>
+        <div class="stat-card"><div class="stat-icon purple"><i class="bi bi-building"></i></div><div class="stat-value" id="sProps">-</div><div class="stat-label">Properties</div></div>
+        <div class="stat-card"><div class="stat-icon amber"><i class="bi bi-receipt"></i></div><div class="stat-value" id="sTxns">-</div><div class="stat-label">Transactions</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><h3>Recent Transactions</h3><a href="/admin/all-transactions" class="btn btn-sm btn-secondary">View All</a></div>
+          <div id="recentTxns"><p class="text-muted">Loading...</p></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Recent Audit Logs</h3><a href="/admin/audit-logs" class="btn btn-sm btn-secondary">View All</a></div>
+          <div id="recentLogs"><p class="text-muted">Loading...</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/app.js"></script>
+<script>
+(async()=>{
+  try{
+    const statsRes=await fetch('/api/stats');const statsData=await statsRes.json();
+    if(statsData.status===1){
+      document.getElementById('sUsers').textContent=statsData.stats.total_users;
+      document.getElementById('sOfficers').textContent=statsData.stats.total_officers;
+      document.getElementById('sProps').textContent=statsData.stats.total_properties;
+      document.getElementById('sTxns').textContent=statsData.stats.total_transactions;
+    }
+  }catch(e){}
+  try{
+    const txRes=await fetch('/api/all-transactions');const txData=await txRes.json();
+    if(txData.status===1&&txData.transactions.length){
+      let h='';txData.transactions.slice(0,5).forEach(t=>{h+=`<div style="padding:8px 0;border-bottom:1px solid var(--border-glass);font-size:0.85rem;"><span class="badge badge-info">${t.tx_type}</span> <span class="text-muted">${(t.from_address||'').slice(0,10)}... — ${new Date(t.timestamp).toLocaleDateString()}</span></div>`;});
+      document.getElementById('recentTxns').innerHTML=h;
+    }else{document.getElementById('recentTxns').innerHTML='<p class="text-muted">No transactions yet</p>';}
+  }catch(e){document.getElementById('recentTxns').innerHTML='<p class="text-muted">Error loading</p>';}
+  try{
+    const logRes=await fetch('/api/audit-logs');const logData=await logRes.json();
+    if(logData.status===1&&logData.logs.length){
+      let h='';logData.logs.slice(0,5).forEach(l=>{h+=`<div style="padding:8px 0;border-bottom:1px solid var(--border-glass);font-size:0.85rem;"><strong>${l.action}</strong> <span class="text-muted">— ${new Date(l.timestamp).toLocaleDateString()}</span><br><span class="text-muted">${l.details||''}</span></div>`;});
+      document.getElementById('recentLogs').innerHTML=h;
+    }else{document.getElementById('recentLogs').innerHTML='<p class="text-muted">No logs yet</p>';}
+  }catch(e){document.getElementById('recentLogs').innerHTML='<p class="text-muted">Error loading</p>';}
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends 'app_layout.html' %}
+{% block page_title %}Available to Buy{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Properties Available to Buy</h1><p>Browse and send purchase requests</p></div>
+<div class="card mb-3" style="padding:16px;">
+  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <input type="number" class="form-control" id="searchLoc" placeholder="Enter Location ID" style="flex:1;min-width:200px;">
+    <button class="btn btn-primary" onclick="searchSales()"><i class="bi bi-search"></i> Search</button>
+  </div>
+</div>
+<div id="salesContainer">
+  <div class="empty-state"><div class="icon"><i class="bi bi-search"></i></div><h3>Search by Location</h3><p>Enter a location ID to find available properties</p></div>
+</div>
+{% endblock %}
+{% block page_scripts %}
+<script>
+async function searchSales(){
+  const loc=document.getElementById('searchLoc').value;
+  const container=document.getElementById('salesContainer');
+  if(!loc){showToast('Enter location ID','warning');return;}
+  try{
+    const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr=localStorage.getItem('TransferOwnership_ContractAddress');
+    const tc=new web3.eth.Contract(abi,addr);
+    const lrAbi=JSON.parse(localStorage.getItem('LandRegistry_ContractABI'));
+    const lrAddr=localStorage.getItem('LandRegistry_ContractAddress');
+    const lrc=new web3.eth.Contract(lrAbi,lrAddr);
+    const sales=await tc.methods.getSalesByLocation(loc).call();
+    const active=sales.filter(s=>s.state==='0');
+    if(!active.length){container.innerHTML='<div class="empty-state"><div class="icon"><i class="bi bi-inbox"></i></div><h3>No Active Listings</h3><p>No properties on sale in this location</p></div>';return;}
+    let html='<div class="grid-3">';
+    for(const sale of active){
+      const d=await lrc.methods.getPropertyDetails(sale.propertyId).call();
+      const eth=web3.utils.fromWei(sale.price,'ether');
+      html+=`<div class="card">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;"><span class="badge badge-success">Active</span><span class="text-muted" style="font-size:0.8rem;">Sale #${sale.saleId}</span></div>
+        <h3 style="margin-bottom:4px;">${eth} ETH</h3>
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:16px;">Property #${sale.propertyId} &bull; Survey #${d.surveyNumber}<br>Area: ${d.area} sq ft &bull; Location: ${d.locationId}<br>Owner: ${sale.owner.slice(0,6)}...${sale.owner.slice(-4)}</p>
+        <button class="btn btn-sm btn-secondary mb-2" style="width:100%;" onclick="document.getElementById('pdfFrame').src='/api/property-doc/${sale.propertyId}';document.getElementById('pdfPopup').classList.add('active');"><i class="bi bi-file-pdf"></i> View Docs</button>
+        <button class="btn btn-sm btn-primary" style="width:100%;" onclick="sendRequest(${sale.saleId})"><i class="bi bi-send"></i> Send Purchase Request</button>
+      </div>`;
+    }
+    html+='</div>';
+    container.innerHTML=html;
+  }catch(e){console.error(e);showToast('Error searching','error');}
+}
+async function sendRequest(saleId){
+  const price=await showPrompt('Enter your offer price (ETH):');
+  if(!price||price<=0)return;
+  const account=localStorage.getItem('userAddress');
+  try{
+    showLoading('Sending purchase request...');
+    const abi=JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr=localStorage.getItem('TransferOwnership_ContractAddress');
+    const c=new web3.eth.Contract(abi,addr);
+    await c.methods.sendPurchaseRequest(saleId,price).send({from:account});
+    fetch('/api/log-transaction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({txType:'Purchase Request',fromAddress:account,propertyId:String(saleId),amount:price})});
+    hideLoading();showToast('Purchase request sent!','success');searchSales();
+  }catch(e){hideLoading();showToast(parseError(e),'error');}
+}
+</script>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends 'app_layout.html' %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Welcome back, <span id="userName" class="text-accent">User</span></h1>
+  <p>Overview of your land registry activity</p>
+</div>
+
+<!-- Stats -->
+<div class="grid-4 mb-3" id="statsGrid">
+  <div class="stat-card"><div class="stat-icon green"><i class="bi bi-house"></i></div><div class="stat-value" id="statProps">0</div><div class="stat-label">My Properties</div></div>
+  <div class="stat-card"><div class="stat-icon blue"><i class="bi bi-check-circle"></i></div><div class="stat-value" id="statVerified">0</div><div class="stat-label">Verified</div></div>
+  <div class="stat-card"><div class="stat-icon amber"><i class="bi bi-tag"></i></div><div class="stat-value" id="statOnSale">0</div><div class="stat-label">On Sale</div></div>
+  <div class="stat-card"><div class="stat-icon purple"><i class="bi bi-cart-check"></i></div><div class="stat-value" id="statBought">0</div><div class="stat-label">Purchased</div></div>
+</div>
+
+<!-- Properties Table -->
+<div class="table-container">
+  <div class="card-header">
+    <h3><i class="bi bi-house"></i> My Properties</h3>
+    <a href="/user/register-land" class="btn btn-sm btn-primary"><i class="bi bi-plus"></i> Register New</a>
+  </div>
+  <table>
+    <thead><tr>
+      <th>#</th><th>Property ID</th><th>Location</th><th>Revenue Dept</th><th>Survey No.</th><th>Area</th><th>Docs</th><th>Status</th><th>Actions</th>
+    </tr></thead>
+    <tbody id="propertiesTableBody">
+      <tr><td colspan="9" class="text-center text-muted" style="padding:40px;">Loading properties...</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+const STATE_MAP = {0:'Pending',1:'Scheduled',2:'Verified',3:'Rejected',4:'On Sale',5:'Bought'};
+const STATE_BADGE = {0:'badge-warning',1:'badge-info',2:'badge-success',3:'badge-danger',4:'badge-purple',5:'badge-success'};
+
+async function loadDashboard() {
+  const account = localStorage.getItem('userAddress');
+  if (!account) { window.location.href = '/'; return; }
+
+  try {
+    const abi = JSON.parse(localStorage.getItem('LandRegistry_ContractABI'));
+    const addr = localStorage.getItem('LandRegistry_ContractAddress');
+    const contract = new web3.eth.Contract(abi, addr);
+
+    const uAbi = JSON.parse(localStorage.getItem('Users_ContractABI'));
+    const uAddr = localStorage.getItem('Users_ContractAddress');
+    const uContract = new web3.eth.Contract(uAbi, uAddr);
+
+    // Get user name
+    try {
+      const user = await uContract.methods.users(account).call();
+      if (user.userID === account) document.getElementById('userName').textContent = user.firstName;
+    } catch(e) {}
+
+    const properties = await contract.methods.getPropertiesOfOwner(account).call();
+    let verified=0, onSale=0, bought=0;
+
+    document.getElementById('statProps').textContent = properties.length;
+
+    if (properties.length === 0) {
+      document.getElementById('propertiesTableBody').innerHTML = '<tr><td colspan="9" class="text-center text-muted" style="padding:40px;"><i class="bi bi-house" style="font-size:2rem;display:block;margin-bottom:8px;"></i>No properties registered yet.<br><a href="/user/register-land" class="text-accent">Register your first property</a></td></tr>';
+      return;
+    }
+
+    let html = '';
+    properties.forEach((p, i) => {
+      const state = parseInt(p.state);
+      if (state === 2) verified++;
+      if (state === 4) onSale++;
+      if (state === 5) bought++;
+
+      let actionBtn = '';
+      if (state === 2) {
+        actionBtn = `<button class="btn btn-sm btn-primary" onclick="listForSale(${p.propertyId})"><i class="bi bi-tag"></i> Sell</button>`;
+      } else if (state === 3) {
+        actionBtn = `<span class="text-red" style="font-size:0.8rem;">${p.rejectedReason || 'Rejected'}</span>`;
+      }
+
+      html += `<tr>
+        <td>${i+1}</td>
+        <td><strong>${p.propertyId}</strong></td>
+        <td>${p.locationId}</td>
+        <td>${p.revenueDepartmentId}</td>
+        <td>${p.surveyNumber}</td>
+        <td>${p.area} sq ft</td>
+        <td><button class="btn btn-sm btn-secondary" onclick="viewDoc(${p.propertyId})"><i class="bi bi-file-pdf"></i></button></td>
+        <td><span class="badge ${STATE_BADGE[state]}">${STATE_MAP[state]}</span></td>
+        <td>${actionBtn}</td>
+      </tr>`;
+    });
+
+    document.getElementById('statVerified').textContent = verified;
+    document.getElementById('statOnSale').textContent = onSale;
+    document.getElementById('statBought').textContent = bought;
+    document.getElementById('propertiesTableBody').innerHTML = html;
+  } catch (error) {
+    console.error(error);
+    showToast('Error loading properties', 'error');
+  }
+}
+
+function viewDoc(propId) {
+  document.getElementById('pdfFrame').src = `/api/property-doc/${propId}`;
+  document.getElementById('pdfPopup').classList.add('active');
+}
+
+async function listForSale(propertyId) {
+  const price = await showPrompt('Enter sale price (in Ether):');
+  if (!price || price <= 0) return;
+
+  const account = localStorage.getItem('userAddress');
+  try {
+    showLoading('Listing property for sale...');
+    const abi = JSON.parse(localStorage.getItem('TransferOwnership_ContractABI'));
+    const addr = localStorage.getItem('TransferOwnership_ContractAddress');
+    const contract = new web3.eth.Contract(abi, addr);
+
+    await contract.methods.addPropertyOnSale(propertyId, price).send({from: account});
+
+    fetch('/api/log-transaction', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({txType:'List for Sale', fromAddress:account, propertyId:String(propertyId), amount:price})
+    });
+
+    hideLoading();
+    showToast('Property listed for sale!', 'success');
+    loadDashboard();
+  } catch (error) {
+    hideLoading();
+    showToast(parseError(error), 'error');
+  }
+}
+
+loadDashboard();
+</script>
+{% endblock %}

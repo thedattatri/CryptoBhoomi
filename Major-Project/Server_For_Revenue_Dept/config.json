@@ -1,0 +1,8 @@
+{
+  "Ganache_Url": "http://127.0.0.1:7545",
+  "NETWORK_CHAIN_ID": 5777,
+  "Mongo_Db_Url": "mongodb://localhost:27017",
+  "Secret_Key": "land_registry_secret_key_123",
+  "Address_Used_To_Deploy_Contract": "0xEB3dBeF3f0ff070C4067DaAd2889C0EA7c999c7D",
+  "Admin_Password": "12345678"
+}

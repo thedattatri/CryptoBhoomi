@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}All Properties{% endblock %}
+{% block body %}
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><div class="logo">Block<span>Land</span></div><div class="subtitle">Admin Panel</div></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Overview</div><a href="/admin/dashboard"><span class="nav-icon"><i class="bi bi-speedometer2"></i></span> Dashboard</a>
+      <div class="nav-section">Management</div><a href="/admin/manage-officers"><span class="nav-icon"><i class="bi bi-person-badge"></i></span> Manage Officers</a><a href="/admin/manage-users"><span class="nav-icon"><i class="bi bi-people"></i></span> Manage Users</a><a href="/admin/all-properties" class="active"><span class="nav-icon"><i class="bi bi-building"></i></span> All Properties</a>
+      <div class="nav-section">Reports</div><a href="/admin/all-transactions"><span class="nav-icon"><i class="bi bi-receipt"></i></span> Transactions</a><a href="/admin/audit-logs"><span class="nav-icon"><i class="bi bi-journal-text"></i></span> Audit Logs</a><a href="/admin/reports"><span class="nav-icon"><i class="bi bi-graph-up"></i></span> Reports</a>
+      <div class="nav-section">Account</div><a href="/logout"><span class="nav-icon"><i class="bi bi-box-arrow-left"></i></span> Logout</a>
+    </nav>
+  </aside>
+  <div class="main-content">
+    <header class="topbar"><div style="display:flex;align-items:center;gap:12px;"><button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="bi bi-list"></i></button><span class="page-title">All Properties</span></div><div class="topbar-actions"><span class="badge badge-success">Admin</span></div></header>
+    <div class="page-content fade-in">
+      <div class="page-header"><h1>All Land Records</h1><p>Search properties by owner address (requires MetaMask)</p></div>
+      <div class="card mb-3" style="padding:16px;"><div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <input type="text" class="form-control" id="ownerAddr" placeholder="Enter owner wallet address" style="flex:1;min-width:200px;">
+        <button class="btn btn-primary" onclick="loadOwnerProps()"><i class="bi bi-search"></i> Search</button>
+      </div></div>
+      <div class="table-container"><table><thead><tr><th>ID</th><th>Location</th><th>Dept</th><th>Survey</th><th>Area</th><th>Owner</th><th>Status</th></tr></thead><tbody id="propBody"><tr><td colspan="7" class="text-center text-muted" style="padding:40px;">Enter an owner address to search</td></tr></tbody></table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/web3.min.js"></script><script src="/static/js/app.js"></script><script>
+const SM={0:'Pending',1:'Scheduled',2:'Verified',3:'Rejected',4:'On Sale',5:'Bought'};
+const SB={0:'badge-warning',1:'badge-info',2:'badge-success',3:'badge-danger',4:'badge-purple',5:'badge-success'};
+async function loadOwnerProps(){
+  const addr=document.getElementById('ownerAddr').value.trim();
+  if(!addr){showToast('Enter address','warning');return;}
+  if(!window.ethereum){showToast('MetaMask required','error');return;}
+  window.web3=new Web3(ethereum);await loadContractDetails();
+  try{const abi=JSON.parse(localStorage.getItem('LandRegistry_ContractABI'));const cAddr=localStorage.getItem('LandRegistry_ContractAddress');const c=new web3.eth.Contract(abi,cAddr);
+    const props=await c.methods.getPropertiesOfOwner(addr).call();
+    if(!props.length){document.getElementById('propBody').innerHTML='<tr><td colspan="7" class="text-center text-muted" style="padding:40px;">No properties found</td></tr>';return;}
+    let h='';props.forEach(p=>{const s=parseInt(p.state);h+=`<tr><td><strong>${p.propertyId}</strong></td><td>${p.locationId}</td><td>${p.revenueDepartmentId}</td><td>${p.surveyNumber}</td><td>${p.area}</td><td>${p.owner.slice(0,8)}...</td><td><span class="badge ${SB[s]}">${SM[s]}</span></td></tr>`;});
+    document.getElementById('propBody').innerHTML=h;
+  }catch(e){showToast('Error: '+e.message,'error');}
+}
+</script>{% endblock %}

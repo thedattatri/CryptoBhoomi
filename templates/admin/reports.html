@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Reports{% endblock %}
+{% block body %}
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><div class="logo">Block<span>Land</span></div><div class="subtitle">Admin Panel</div></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Overview</div><a href="/admin/dashboard"><span class="nav-icon"><i class="bi bi-speedometer2"></i></span> Dashboard</a>
+      <div class="nav-section">Management</div><a href="/admin/manage-officers"><span class="nav-icon"><i class="bi bi-person-badge"></i></span> Manage Officers</a><a href="/admin/manage-users"><span class="nav-icon"><i class="bi bi-people"></i></span> Manage Users</a><a href="/admin/all-properties"><span class="nav-icon"><i class="bi bi-building"></i></span> All Properties</a>
+      <div class="nav-section">Reports</div><a href="/admin/all-transactions"><span class="nav-icon"><i class="bi bi-receipt"></i></span> Transactions</a><a href="/admin/audit-logs"><span class="nav-icon"><i class="bi bi-journal-text"></i></span> Audit Logs</a><a href="/admin/reports" class="active"><span class="nav-icon"><i class="bi bi-graph-up"></i></span> Reports</a>
+      <div class="nav-section">Account</div><a href="/logout"><span class="nav-icon"><i class="bi bi-box-arrow-left"></i></span> Logout</a>
+    </nav>
+  </aside>
+  <div class="main-content">
+    <header class="topbar"><div style="display:flex;align-items:center;gap:12px;"><button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="bi bi-list"></i></button><span class="page-title">Reports</span></div><div class="topbar-actions"><span class="badge badge-success">Admin</span></div></header>
+    <div class="page-content fade-in">
+      <div class="page-header"><h1>Reports & Analytics</h1><p>Generate and view system reports</p></div>
+      <div class="grid-3">
+        <div class="card" style="text-align:center;">
+          <div class="stat-icon green" style="margin:0 auto 16px;"><i class="bi bi-file-earmark-bar-graph"></i></div>
+          <h3>Transaction Report</h3>
+          <p class="text-muted" style="font-size:0.85rem;margin-bottom:16px;">All payment and transfer transactions</p>
+          <a href="/admin/all-transactions" class="btn btn-primary btn-sm"><i class="bi bi-eye"></i> View</a>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="stat-icon blue" style="margin:0 auto 16px;"><i class="bi bi-building"></i></div>
+          <h3>Property Report</h3>
+          <p class="text-muted" style="font-size:0.85rem;margin-bottom:16px;">All registered land records</p>
+          <a href="/admin/all-properties" class="btn btn-primary btn-sm"><i class="bi bi-eye"></i> View</a>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="stat-icon purple" style="margin:0 auto 16px;"><i class="bi bi-journal-check"></i></div>
+          <h3>Audit Report</h3>
+          <p class="text-muted" style="font-size:0.85rem;margin-bottom:16px;">Complete audit trail</p>
+          <a href="/admin/audit-logs" class="btn btn-primary btn-sm"><i class="bi bi-eye"></i> View</a>
+        </div>
+      </div>
+      <div class="card mt-3">
+        <div class="card-header"><h3>System Summary</h3></div>
+        <div class="grid-4" id="summaryStats">
+          <div><strong class="text-accent" id="rUsers">-</strong><br><span class="text-muted" style="font-size:0.85rem;">Users</span></div>
+          <div><strong class="text-blue" id="rOfficers">-</strong><br><span class="text-muted" style="font-size:0.85rem;">Officers</span></div>
+          <div><strong class="text-amber" id="rProps">-</strong><br><span class="text-muted" style="font-size:0.85rem;">Properties</span></div>
+          <div><strong style="color:var(--purple);" id="rTxns">-</strong><br><span class="text-muted" style="font-size:0.85rem;">Transactions</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/app.js"></script><script>
+(async()=>{try{const r=await fetch('/api/stats');const d=await r.json();if(d.status===1){document.getElementById('rUsers').textContent=d.stats.total_users;document.getElementById('rOfficers').textContent=d.stats.total_officers;document.getElementById('rProps').textContent=d.stats.total_properties;document.getElementById('rTxns').textContent=d.stats.total_transactions;}}catch(e){}})();
+</script>{% endblock %}

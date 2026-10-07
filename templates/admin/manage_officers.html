@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}Manage Officers{% endblock %}
+{% block body %}
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><div class="logo">Block<span>Land</span></div><div class="subtitle">Admin Panel</div></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Overview</div>
+      <a href="/admin/dashboard"><span class="nav-icon"><i class="bi bi-speedometer2"></i></span> Dashboard</a>
+      <div class="nav-section">Management</div>
+      <a href="/admin/manage-officers" class="active"><span class="nav-icon"><i class="bi bi-person-badge"></i></span> Manage Officers</a>
+      <a href="/admin/manage-users"><span class="nav-icon"><i class="bi bi-people"></i></span> Manage Users</a>
+      <a href="/admin/all-properties"><span class="nav-icon"><i class="bi bi-building"></i></span> All Properties</a>
+      <div class="nav-section">Reports</div>
+      <a href="/admin/all-transactions"><span class="nav-icon"><i class="bi bi-receipt"></i></span> Transactions</a>
+      <a href="/admin/audit-logs"><span class="nav-icon"><i class="bi bi-journal-text"></i></span> Audit Logs</a>
+      <a href="/admin/reports"><span class="nav-icon"><i class="bi bi-graph-up"></i></span> Reports</a>
+      <div class="nav-section">Account</div>
+      <a href="/logout"><span class="nav-icon"><i class="bi bi-box-arrow-left"></i></span> Logout</a>
+    </nav>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="bi bi-list"></i></button>
+        <span class="page-title">Manage Revenue Officers</span>
+      </div>
+      <div class="topbar-actions"><span class="badge badge-success">Admin</span></div>
+    </header>
+
+    <div class="page-content fade-in">
+      <div class="page-header"><h1>Add Revenue Officer</h1><p>Register a new officer and map to revenue department on blockchain</p></div>
+
+      <div style="max-width:600px;">
+        <div class="card">
+          <form onsubmit="addOfficer(event)">
+            <div class="form-group"><label>Employee Wallet Address</label><input type="text" class="form-control" id="empWallet" placeholder="0x..." required></div>
+            <div class="grid-2">
+              <div class="form-group"><label>First Name</label><input type="text" class="form-control" id="empFname" required></div>
+              <div class="form-group"><label>Last Name</label><input type="text" class="form-control" id="empLname" required></div>
+            </div>
+            <div class="form-group"><label>Revenue Department ID</label><input type="number" class="form-control" id="empDeptId" required></div>
+            <div class="form-group"><label>Password</label><input type="password" class="form-control" id="empPassword" value="12345678" required></div>
+            <button type="submit" class="btn btn-primary btn-lg" id="addOfficerBtn"><i class="bi bi-person-plus"></i> Add Officer</button>
+          </form>
+          <p class="mt-2" id="addOfficerStatus" style="font-size:0.85rem;"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/web3.min.js"></script>
+<script src="/static/js/app.js"></script>
+<script>
+async function addOfficer(e){
+  e.preventDefault();
+  const status=document.getElementById('addOfficerStatus');
+  const btn=document.getElementById('addOfficerBtn');
+  
+  const empWallet = document.getElementById('empWallet').value.trim();
+  const deptId = parseInt(document.getElementById('empDeptId').value.trim());
+
+  if (!window.ethereum) { showToast('MetaMask required', 'error'); return; }
+
+  btn.disabled=true;btn.innerHTML='<div class="spinner" style="width:18px;height:18px;border-width:2px;display:inline-block;"></div> Please confirm in MetaMask...';
+
+  try {
+    window.web3 = new Web3(ethereum);
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    
+    const accounts = await web3.eth.getAccounts();
+    const account = accounts[0];
+    const expectedAddr = localStorage.getItem('userAddress');
+    
+    if(!expectedAddr || account.toLowerCase() !== expectedAddr.toLowerCase()) {
+      showToast(`Wallet mismatch! Switch MetaMask to Admin account ending in ${expectedAddr ? expectedAddr.slice(-4) : ''}`, 'error');
+      btn.disabled=false;btn.innerHTML='<i class="bi bi-person-plus"></i> Add Officer';
+      return;
+    }
+
+    await loadContractDetails();
+    const abi = JSON.parse(localStorage.getItem('LandRegistry_ContractABI'));
+    const addr = localStorage.getItem('LandRegistry_ContractAddress');
+    const c = new web3.eth.Contract(abi, addr);
+
+    // Call blockchain mapping
+    status.innerHTML = '<span class="text-amber">Waiting for blockchain confirmation...</span>';
+    await c.methods.mapRevenueDeptIdToEmployee(deptId, empWallet).send({from: account});
+
+    status.innerHTML = '<span class="text-accent">Blockchain mapped! Saving to database...</span>';
+
+    const fd=new FormData();
+    fd.append('empAddress', empWallet);
+    fd.append('fname',document.getElementById('empFname').value);
+    fd.append('lname',document.getElementById('empLname').value);
+    fd.append('revenueDeptId', deptId);
+    fd.append('password',document.getElementById('empPassword').value);
+
+    const res=await fetch('/admin/add-officer',{method:'POST',body:fd});
+    const data=await res.json();
+
+    if(data.status===1){
+      status.innerHTML=`<span class="text-accent">✓ ${data.msg}</span>`;
+      document.querySelector('form').reset();
+    } else {
+      status.innerHTML=`<span class="text-red">${data.msg}</span>`;
+    }
+
+  } catch(err) {
+    console.error(err);
+    status.innerHTML=`<span class="text-red">${parseError(err)}</span>`;
+  }
+  
+  btn.disabled=false;btn.innerHTML='<i class="bi bi-person-plus"></i> Add Officer';
+}
+</script>
+{% endblock %}
